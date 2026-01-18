@@ -62,12 +62,15 @@ async def lifespan(mcp: FastMCP) -> AsyncIterator[None]:
 
 mcp = FastMCP(name="Spotify MCP Server", lifespan=lifespan)
 
+
 @mcp.tool()
 async def get_current_playback(market: str | None = None) -> PlaybackState | None:
     return await _spotify_client.current_playback(market=market)
 
 
-@mcp.tool(description="Get available devices and update the device resolver cache. - use this when u cant find a device.")
+@mcp.tool(
+    description="Get available devices and update the device resolver cache. - use this when u cant find a device."
+)
 async def get_devices() -> DevicesResponse:
     devices = await _spotify_client.devices()
     for device in devices.devices:
@@ -98,14 +101,18 @@ async def pause_playback(device_name: str | None = None) -> ActionSuccessRespons
 
 
 @mcp.tool()
-async def add_to_queue(uri: str, device_name: str | None = None) -> ActionSuccessResponse:
+async def add_to_queue(
+    uri: str, device_name: str | None = None
+) -> ActionSuccessResponse:
     device_id = _device_resolver.resolve(device_name)
     await _spotify_client.add_to_queue(uri=uri, device_id=device_id)
     return ActionSuccessResponse(message=f"Added {uri} to queue")
 
 
 @mcp.tool()
-async def set_volume(volume_percent: int, device_name: str | None = None) -> ActionSuccessResponse:
+async def set_volume(
+    volume_percent: int, device_name: str | None = None
+) -> ActionSuccessResponse:
     device_id = _device_resolver.resolve(device_name)
     await _spotify_client.volume(volume_percent=volume_percent, device_id=device_id)
     return ActionSuccessResponse(message=f"Volume set to {volume_percent}%")
@@ -117,7 +124,9 @@ async def transfer_playback(device_name: str) -> ActionSuccessResponse:
     if not device_id:
         return ActionSuccessResponse(message=f"Device '{device_name}' not found")
     await _spotify_client.transfer_playback(device_id=device_id, force_play=True)
-    return ActionSuccessResponse(message=f"Playback transferred to device {device_name}")
+    return ActionSuccessResponse(
+        message=f"Playback transferred to device {device_name}"
+    )
 
 
 @mcp.tool()
@@ -127,12 +136,10 @@ async def search_tracks(
     market: str | None = None,
 ) -> list[Track]:
     result = await _spotify_client.search(
-        q=query, 
-        type="track", 
-        limit=limit, 
-        market=market
+        q=query, type="track", limit=limit, market=market
     )
     return result.tracks.items if result.tracks else []
+
 
 @mcp.tool()
 async def search_albums(
@@ -141,10 +148,7 @@ async def search_albums(
     market: str | None = None,
 ) -> list[SimplifiedAlbum]:
     result = await _spotify_client.search(
-        q=query, 
-        type="album", 
-        limit=limit, 
-        market=market
+        q=query, type="album", limit=limit, market=market
     )
     return result.albums.items if result.albums else []
 
@@ -164,7 +168,9 @@ async def previous_track(device_name: str | None = None) -> ActionSuccessRespons
 
 
 @mcp.tool()
-async def set_shuffle(state: bool, device_name: str | None = None) -> ActionSuccessResponse:
+async def set_shuffle(
+    state: bool, device_name: str | None = None
+) -> ActionSuccessResponse:
     device_id = _device_resolver.resolve(device_name)
     await _spotify_client.shuffle(state=state, device_id=device_id)
     status = "enabled" if state else "disabled"
@@ -172,7 +178,9 @@ async def set_shuffle(state: bool, device_name: str | None = None) -> ActionSucc
 
 
 @mcp.tool()
-async def play_album(album_uri: str, device_name: str | None = None) -> ActionSuccessResponse:
+async def play_album(
+    album_uri: str, device_name: str | None = None
+) -> ActionSuccessResponse:
     device_id = _device_resolver.resolve(device_name)
     await _spotify_client.start_playback(device_id=device_id, context_uri=album_uri)
     return ActionSuccessResponse(message=f"Playing album {album_uri}")
@@ -184,4 +192,6 @@ async def get_recently_played(
     after: int | None = None,
     before: int | None = None,
 ) -> RecentlyPlayedResponse:
-    return await _spotify_client.current_user_recently_played(limit=limit, after=after, before=before)
+    return await _spotify_client.current_user_recently_played(
+        limit=limit, after=after, before=before
+    )

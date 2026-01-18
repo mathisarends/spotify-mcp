@@ -11,6 +11,7 @@ from spotify_mcp.models import (
     SearchResponse,
 )
 
+
 class AsyncSpotify:
     """Async wrapper around spotipy.Spotify with Pydantic models."""
 

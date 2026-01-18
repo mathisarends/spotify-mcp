@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
+
 async def interactive_session():
     async with MCPServerStdio(
         name="Spotify Server",
@@ -23,22 +24,23 @@ async def interactive_session():
             """,
             mcp_servers=[spotify_server],
         )
-        
+
         print("🎵 Spotify DJ gestartet!")
         print("Schreib 'exit' zum Beenden\n")
-        
+
         while True:
             user_input = input("Du: ").strip()
-            
+
             if user_input.lower() in ["exit", "quit", "bye"]:
                 break
-            
+
             if not user_input:
                 continue
-            
+
             # Run the agent
             result = await Runner.run(agent, user_input)
             print(f"🤖 Assistant: {result.final_output}\n")
+
 
 if __name__ == "__main__":
     asyncio.run(interactive_session())
