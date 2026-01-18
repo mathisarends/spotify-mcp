@@ -6,7 +6,6 @@ __pycache__/
 *$py.class
 
 # Virtual environments
-venv/
 env/
 .venv/
 .env/
@@ -42,6 +41,7 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+.spotify_cache
 nosetests.xml
 coverage.xml
 *.cover

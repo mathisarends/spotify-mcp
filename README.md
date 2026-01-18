@@ -1,0 +1,10 @@
+### Developer Docs
+https://developer.spotify.com/dashboard
+
+
+Set env fiels
+```bash
+SPOTIFY_CLIENT_ID=your_spotify_client_id_here
+SPOTIFY_APP_CLIENT_SECRET=your_spotify_app_client_secret_here
+SPOTIFY_REDIRECT_URI=http://localhost:3000/callback
+```
