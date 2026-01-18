@@ -6,6 +6,10 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "fastmcp>=2.14.3",
+    "openai-agents>=0.6.7",
     "python-dotenv>=1.2.1",
     "spotipy>=2.25.2",
 ]
+
+[project.scripts]
+spotify-mcp = "spotify_mcp.cli:main"

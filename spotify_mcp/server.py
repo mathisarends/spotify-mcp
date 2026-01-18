@@ -7,6 +7,7 @@ from mcp.server.fastmcp import FastMCP
 from spotipy.oauth2 import SpotifyOAuth
 
 from spotify_mcp import AsyncSpotify, SpotifyScope
+from spotify_mcp.device_resolver import DeviceResolver
 from spotify_mcp.models import (
     DevicesResponse,
     Episode,
@@ -20,7 +21,7 @@ from spotify_mcp.models import (
 )
 from spotify_mcp.types import ActionSuccessResponse
 
-load_dotenv()
+load_dotenv(override=True)
 
 _SPOTIFY_SCOPES = [
     SpotifyScope.USER_READ_PLAYBACK_STATE,
@@ -34,24 +35,15 @@ _SPOTIFY_SCOPES = [
 ]
 
 
+_spotify_client: AsyncSpotify | None = None
+_device_resolver: DeviceResolver | None = None
+
+
 @asynccontextmanager
-async def lifespan(server: FastMCP) -> AsyncIterator[None]:
-    """ cache = get_cache() """ # hier könnte man einen lookup cache implementierne und den client in allen routen verfügbar machen
-    # beziehungsweise auch nur instanziieren (für mehr geschwindigkeit der agents)
+async def lifespan(mcp: FastMCP) -> AsyncIterator[None]:
+    global _spotify_client, _device_resolver
 
-    # was ich machen möchte ist einen lookup nach namen und nciht nach device id 
-    """ await cache.populate() """
-
-    yield
-
-    """ await cache.clear_all() """
-
-
-
-mcp = FastMCP("Spotify MCP Server")
-
-def get_spotify_client() -> AsyncSpotify:
-    return AsyncSpotify(
+    _spotify_client = AsyncSpotify(
         auth_manager=SpotifyOAuth(
             client_id=os.getenv("SPOTIFY_CLIENT_ID"),
             client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
@@ -60,28 +52,40 @@ def get_spotify_client() -> AsyncSpotify:
         )
     )
 
+    _device_resolver = DeviceResolver()
+    devices = await _spotify_client.devices()
+    for device in devices.devices:
+        _device_resolver.set_device(device.name, device.id)
+
+    yield
+
+    if _device_resolver:
+        _device_resolver.invalidate()
+    _device_resolver = None
+    _spotify_client = None
+
+
+mcp = FastMCP("Spotify MCP Server", lifespan=lifespan)
 
 @mcp.tool()
 async def get_current_playback(market: str | None = None) -> PlaybackState | None:
-    spotify_client = get_spotify_client()
-    return await spotify_client.current_playback(market=market)
+    return await _spotify_client.current_playback(market=market)
 
 
 @mcp.tool()
 async def get_devices() -> DevicesResponse:
-    spotify_client = get_spotify_client()
-    return await spotify_client.devices()
+    return await _spotify_client.devices()
 
 
 @mcp.tool()
 async def start_playback(
-    device_id: str | None = None,
+    device_name: str | None = None,
     context_uri: str | None = None,
     uris: list[str] | None = None,
     position_ms: int | None = None,
 ) -> ActionSuccessResponse:
-    spotify_client = get_spotify_client()
-    await spotify_client.start_playback(
+    device_id = _device_resolver.resolve(device_name)
+    await _spotify_client.start_playback(
         device_id=device_id,
         context_uri=context_uri,
         uris=uris,
@@ -91,31 +95,33 @@ async def start_playback(
 
 
 @mcp.tool()
-async def pause_playback(device_id: str | None = None) -> ActionSuccessResponse:
-    spotify_client = get_spotify_client()
-    await spotify_client.pause_playback(device_id=device_id)
+async def pause_playback(device_name: str | None = None) -> ActionSuccessResponse:
+    device_id = _device_resolver.resolve(device_name)
+    await _spotify_client.pause_playback(device_id=device_id)
     return ActionSuccessResponse(message="Playback paused")
 
 
 @mcp.tool()
-async def add_to_queue(uri: str, device_id: str | None = None) -> ActionSuccessResponse:
-    spotify_client = get_spotify_client()
-    await spotify_client.add_to_queue(uri=uri, device_id=device_id)
+async def add_to_queue(uri: str, device_name: str | None = None) -> ActionSuccessResponse:
+    device_id = _device_resolver.resolve(device_name)
+    await _spotify_client.add_to_queue(uri=uri, device_id=device_id)
     return ActionSuccessResponse(message=f"Added {uri} to queue")
 
 
 @mcp.tool()
-async def set_volume(volume_percent: int, device_id: str | None = None) -> ActionSuccessResponse:
-    spotify_client = get_spotify_client()
-    await spotify_client.volume(volume_percent=volume_percent, device_id=device_id)
+async def set_volume(volume_percent: int, device_name: str | None = None) -> ActionSuccessResponse:
+    device_id = _device_resolver.resolve(device_name)
+    await _spotify_client.volume(volume_percent=volume_percent, device_id=device_id)
     return ActionSuccessResponse(message=f"Volume set to {volume_percent}%")
 
 
 @mcp.tool()
-async def transfer_playback(device_id: str, force_play: bool = True) -> ActionSuccessResponse:
-    spotify_client = get_spotify_client()
-    await spotify_client.transfer_playback(device_id=device_id, force_play=force_play)
-    return ActionSuccessResponse(message=f"Playback transferred to device {device_id}")
+async def transfer_playback(device_name: str, force_play: bool = True) -> ActionSuccessResponse:
+    device_id = _device_resolver.resolve(device_name)
+    if not device_id:
+        return ActionSuccessResponse(message=f"Device '{device_name}' not found")
+    await _spotify_client.transfer_playback(device_id=device_id, force_play=force_play)
+    return ActionSuccessResponse(message=f"Playback transferred to device {device_name}")
 
 
 @mcp.tool()
@@ -125,8 +131,7 @@ async def search_spotify(
     limit: int = 10,
     market: str | None = None,
 ) -> SearchResponse:
-    spotify_client = get_spotify_client()
-    return await spotify_client.search(q=query, type=type, limit=limit, market=market)
+    return await _spotify_client.search(q=query, type=type, limit=limit, market=market)
 
 
 @mcp.tool()
@@ -135,28 +140,24 @@ async def get_saved_tracks(
     offset: int = 0,
     market: str | None = None,
 ) -> SavedTracksResponse:
-    spotify_client = get_spotify_client()
-    return await spotify_client.current_user_saved_tracks(limit=limit, offset=offset, market=market)
+    return await _spotify_client.current_user_saved_tracks(limit=limit, offset=offset, market=market)
 
 # brauche ich nicht diese methode
 @mcp.tool()
 async def check_saved_tracks(track_ids: list[str]):
-    spotify_client = get_spotify_client()
-    result = await spotify_client.current_user_saved_tracks_contains(tracks=track_ids)
+    result = await _spotify_client.current_user_saved_tracks_contains(tracks=track_ids)
     return {"tracks": track_ids, "saved": result}
 
 # hier auch logishcen lookup für die tracks machen (cachen)
 @mcp.tool()
 async def save_tracks(track_ids: list[str]) -> ActionSuccessResponse:
-    spotify_client = get_spotify_client()
-    await spotify_client.current_user_saved_tracks_add(tracks=track_ids)
+    await _spotify_client.current_user_saved_tracks_add(tracks=track_ids)
     return ActionSuccessResponse(message=f"Saved {len(track_ids)} track(s)")
 
 
 @mcp.tool()
 async def remove_saved_tracks(track_ids: list[str]) -> ActionSuccessResponse:
-    spotify_client = get_spotify_client()
-    await spotify_client.current_user_saved_tracks_delete(tracks=track_ids)
+    await _spotify_client.current_user_saved_tracks_delete(tracks=track_ids)
     return ActionSuccessResponse(message=f"Removed {len(track_ids)} track(s)")
 
 
@@ -166,8 +167,7 @@ async def get_top_tracks(
     offset: int = 0,
     time_range: str = "medium_term",
 ) -> TopTracksResponse:
-    spotify_client = get_spotify_client()
-    return await spotify_client.current_user_top_tracks(limit=limit, offset=offset, time_range=time_range)
+    return await _spotify_client.current_user_top_tracks(limit=limit, offset=offset, time_range=time_range)
 
 
 @mcp.tool()
@@ -176,8 +176,7 @@ async def get_recently_played(
     after: int | None = None,
     before: int | None = None,
 ) -> RecentlyPlayedResponse:
-    spotify_client = get_spotify_client()
-    return await spotify_client.current_user_recently_played(limit=limit, after=after, before=before)
+    return await _spotify_client.current_user_recently_played(limit=limit, after=after, before=before)
 
 
 @mcp.tool()
@@ -188,8 +187,7 @@ async def create_playlist(
     public: bool = True,
     collaborative: bool = False,
 ) -> SimplifiedPlaylist:
-    spotify_client = get_spotify_client()
-    return await spotify_client.user_playlist_create(
+    return await _spotify_client.user_playlist_create(
         user=user_id,
         name=name,
         description=description,
@@ -200,8 +198,7 @@ async def create_playlist(
 
 @mcp.tool()
 async def get_episode(episode_id: str, market: str | None = None) -> Episode:
-    spotify_client = get_spotify_client()
-    return await spotify_client.episode(episode_id=episode_id, market=market)
+    return await _spotify_client.episode(episode_id=episode_id, market=market)
 
 
 @mcp.tool()
@@ -211,8 +208,7 @@ async def get_show_episodes(
     offset: int = 0,
     market: str | None = None,
 ) -> ShowEpisodesResponse:
-    spotify_client = get_spotify_client()
-    return await spotify_client.show_episodes(
+    return await _spotify_client.show_episodes(
         show_id=show_id,
         limit=limit,
         offset=offset,
@@ -221,4 +217,4 @@ async def get_show_episodes(
 
 
 if __name__ == "__main__":
-    mcp.run()
+    mcp.run(transport="stdio") 
