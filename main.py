@@ -27,23 +27,9 @@ async def main():
         )
     )
 
-    devices = await sp.devices()
-    for device in devices.devices:
-        print(f"{device.name} – {device.id}")
-        print(f"  Type: {device.type}, Active: {device.is_active}, Volume: {device.volume_percent}%")
-
-    top_tracks = await sp.current_user_top_tracks(limit=10)
-    for idx, track in enumerate(top_tracks.items, 1):
-        artist_names = ", ".join(artist.name for artist in track.artists)
-        print(f"{idx}. {artist_names} – {track.name}")
-        print(f"   Album: {track.album.name if track.album else 'N/A'}")
-
-    # Saved Tracks
-    saved = await sp.current_user_saved_tracks(limit=5)
-    print(f"\n📚 Total saved tracks: {saved.total}")
-    for item in saved.items:
-        print(f"Added {item.added_at}: {item.track.name}")
-
+    search_response = await sp.search(q="Imagine Dragons", type="track", limit=5)
+    for search_response in search_response.tracks.items:
+        print(search_response)
 
 if __name__ == "__main__":
     import asyncio

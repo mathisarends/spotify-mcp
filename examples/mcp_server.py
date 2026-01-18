@@ -10,7 +10,7 @@ async def interactive_session():
         name="Spotify Server",
         params={
             "command": "uv",
-            "args": ["run", "python", "-m", "spotify_mcp.server"],
+            "args": ["run", "spotify-mcp"],
         },
     ) as spotify_server:
         agent = Agent(

@@ -13,3 +13,6 @@ dependencies = [
 
 [project.scripts]
 spotify-mcp = "spotify_mcp.cli:main"
+
+[tool.uv]
+package = true
