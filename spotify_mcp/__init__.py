@@ -15,6 +15,8 @@ from .models import (
     Track,
 )
 
+from .types import SpotifyScope, ActionSuccessResponse
+
 __all__ = [
     "AsyncSpotify",
     "Artist",
@@ -30,4 +32,6 @@ __all__ = [
     "SimplifiedPlaylist",
     "TopTracksResponse",
     "Track",
+    "SpotifyScope",
+    "ActionSuccessResponse",
 ]
